@@ -36,7 +36,7 @@ namespace chipeur
                         case SDL_EventType.SDL_QUIT:
                             graphics.Destroy();
                             SDL_Quit();
-                            break;
+                            return;
                         case SDL_EventType.SDL_KEYDOWN:
                             for(int i=0; i < input.keymap.Length; i++){
                                 if(e.key.keysym.sym == input.keymap[i]){
