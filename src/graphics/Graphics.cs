@@ -35,7 +35,20 @@ namespace chipeur.graphics
         }
 
         public void Draw(Byte[] gfxBuffer){
-
+            for(int i=0; i < Chip8.DISPLAY_WIDTH * Chip8.DISPLAY_HEIGHT; i++){
+                Byte pixel = gfxBuffer[i];
+                _pixelsBuffer[i] = (UInt32)((0x00FFFFFF * pixel) | 0xFF000000);
+            }
+            unsafe
+            {
+                fixed (UInt32* pixels = _pixelsBuffer)
+                {
+                    SDL_UpdateTexture(_texture, IntPtr.Zero, (IntPtr)pixels, Chip8.DISPLAY_WIDTH * sizeof(UInt32));
+                }
+            }
+            SDL_RenderClear(_renderer);
+            SDL_RenderCopy(_renderer, _texture, IntPtr.Zero, IntPtr.Zero);
+            SDL_RenderPresent(_renderer);
         }
 
         public void Destroy(){

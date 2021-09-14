@@ -10,7 +10,7 @@ namespace chipeur.cpu
         private const int MEMORY_SIZE = 4096;
         private const int MEMORY_PROGRAM_START = 0x200;
 
-        public bool drawFlag {get; private set;}
+        public bool drawFlag {get; set;}
         public Byte[] gfx {get; private set;}
         private Byte[] _memory;
         private UInt16[] _stack;
@@ -157,10 +157,6 @@ namespace chipeur.cpu
                 }
                 --_sound_timer;
             }
-        }
-
-        public void SetKeys(){
-
         }
 
         private void OpCode0x0(UInt16 opcode){
@@ -368,11 +364,14 @@ namespace chipeur.cpu
                     //Check if the pixel is set to 1 in the line
                     if((line & (0x80 >> j)) != 0){
                         //Update the VF register if the pixel was already set to 1
-                        if(gfx[( x + j + ((y + i) * DISPLAY_WIDTH) )] == 1){
-                            _V[0xf] = 1;
+                        var pixelIndex =  x + j + ((y + i) * DISPLAY_WIDTH);
+                        if(pixelIndex < DISPLAY_WIDTH * DISPLAY_HEIGHT){
+                            if(gfx[pixelIndex] == 1){
+                                _V[0xf] = 1;
+                            }
+                            //Flip the pixel in the framebuffer using a XOR
+                            gfx[pixelIndex] ^= 1;
                         }
-                        //Flip the pixel in the framebuffer using a XOR
-                        gfx[( x + j + ((y + i) * DISPLAY_WIDTH) )] ^= 1;
                     }
                 }
             }
