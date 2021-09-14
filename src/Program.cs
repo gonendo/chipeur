@@ -23,7 +23,7 @@ namespace chipeur
             Input input = new Input();
             input.Initialize();
 
-            chip8.Initialize();
+            chip8.Initialize(input);
             chip8.LoadGame(args[0]);
 
             while(true){

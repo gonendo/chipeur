@@ -1,5 +1,6 @@
 using System;
 using System.IO;
+using chipeur.input;
 
 namespace chipeur.cpu
 {
@@ -22,6 +23,8 @@ namespace chipeur.cpu
 
         private Byte _sound_timer;
         private Byte _delay_timer;
+
+        private Input _input;
 
         private Byte[] _chip8_fontset = new Byte[80]
         {
@@ -54,7 +57,8 @@ namespace chipeur.cpu
 
         }
 
-        public void Initialize(){
+        public void Initialize(Input input){
+            _input = input;
             _pc = MEMORY_PROGRAM_START;
             _opcode = 0;
             _I = 0;
@@ -111,7 +115,7 @@ namespace chipeur.cpu
             _0xFDelegates[0x0029] = CpuSetIToSpriteLocationInVX;
             _0xFDelegates[0x0033] = CpuStoreBCDOfVX;
             _0xFDelegates[0x0055] = CpuStoreV0ToVXAtAddressI;
-            _0xFDelegates[0x0065] = CpuFillsV0ToVXWithValuesAtAddressI;
+            _0xFDelegates[0x0065] = CpuFillV0ToVXWithValuesAtAddressI;
         }
 
         public void LoadGame(string gamePath){
@@ -141,7 +145,7 @@ namespace chipeur.cpu
 
             //execute opcode
             var func = _delegates[delegateIndex];
-            Console.WriteLine(func.Method.Name+" "+_opcode.ToString("X4"));
+            //Console.WriteLine(_pc+" "+func.Method.Name+" "+_opcode.ToString("X4"));
             func(_opcode);
 
             if(_delay_timer > 0){
@@ -160,189 +164,318 @@ namespace chipeur.cpu
         }
 
         private void OpCode0x0(UInt16 opcode){
-            _0x0Delegates[(opcode & 0x000F)](opcode);
+            var func = _0x0Delegates[(opcode & 0x000F)];
+            //Console.WriteLine(_pc+" "+func.Method.Name+" "+opcode.ToString("X4"));
+            func(opcode);
         }
 
         //0x00E0 : Clears the screen
         private void CpuDisplayClear(UInt16 opcode){
+            for(int i=0; i < DISPLAY_WIDTH*DISPLAY_HEIGHT; i++){
+                gfx[i] = 0;
+            }
 
+            drawFlag = true;
+            _pc += 2;
         }
 
         //0x00EE : Returns from a subroutine
         private void CpuReturn(UInt16 opcode){
-
+            --_sp;
+            _pc = _stack[_sp];
+            _pc += 2;
         }
 
         //0x1NNN : Jumps to address NNN
         private void CpuJump(UInt16 opcode){
-
+            _pc = (UInt16)(opcode & 0x0fff);
         }
 
         //0x2NNN : Calls subroutine at NNN
         private void CpuCallSubRoutine(UInt16 opcode){
-
+            //store the current program counter address in the stack
+            _stack[_sp] = _pc;
+            ++_sp;
+            //jump to address NNN
+            _pc = (UInt16)(opcode & 0x0fff);
         }
 
         //0x3XNN : Skips the next instruction if VX equals NN. (Usually the next instruction is a jump to skip a code block);
         private void CpuSkipIfVXEqualsNN(UInt16 opcode){
-
+            if(_V[(opcode & 0x0f00) >> 8] == (opcode & 0x00ff)){
+                _pc += 4;
+            }
+            else{
+                _pc += 2;
+            }
         }
 
         //0x4XNN : Skips the next instruction if VX does not equal NN. (Usually the next instruction is a jump to skip a code block);
         private void CpuSkipIfVXNotEqualsNN(UInt16 opcode){
-
+            if(_V[(opcode & 0x0f00) >> 8] != (opcode & 0x00ff)){
+                _pc += 4;
+            }
+            else{
+                _pc += 2;
+            }
         }
 
         //0x5XY0 : Skips the next instruction if VX equals VY. (Usually the next instruction is a jump to skip a code block);
         private void CpuSkipIfVXEqualsVY(UInt16 opcode){
-
+            if(_V[(opcode & 0x0f00) >> 8] == _V[(opcode & 0x00f0 >> 4)]){
+                _pc += 4;
+            }
+            else{
+                _pc += 2;
+            }
         }
 
         //0x6XNN : Sets VX to NN
         private void CpuSetVXToNN(UInt16 opcode){
-            
+            _V[(opcode & 0x0f00) >> 8] = (Byte)(opcode & 0x00ff);
+            _pc += 2;
         }
 
         //0x7XNN : Adds NN to VX. (Carry flag is not changed)
         private void CpuAddNNToVX(UInt16 opcode){
-
+            _V[(opcode & 0x0f00) >> 8] += (Byte)(opcode & 0x00ff);
+            _pc += 2;
         }
 
         private void OpCode0x8(UInt16 opcode){
-            _0x8Delegates[(opcode & 0x000F)](opcode);
+            var func = _0x8Delegates[(opcode & 0x000F)];
+            //Console.WriteLine(_pc+" "+func.Method.Name+" "+opcode.ToString("X4"));
+            func(opcode);
         }
 
         //0x8XY0 : Sets VX to the value of VY.
         private void CpuSetVXToVY(UInt16 opcode){
-
+            _V[(opcode & 0x0f00) >> 8] = _V[(opcode & 0x00f0) >> 4];
+            _pc += 2;
         }
 
         //0x8XY1 : Sets VX to VX or VY. (Bitwise OR operation);
         private void CpuSetVXToVXOrVY(UInt16 opcode){
-            
+            _V[(opcode & 0x0f00) >> 8] |= _V[(opcode & 0x00f0) >> 4];
+            _pc += 2;
         }
 
         //0x8XY2 : Sets VX to VX and VY. (Bitwise AND operation);
         private void CpuSetVXToVXAndVY(UInt16 opcode){
-            
+            _V[(opcode & 0x0f00) >> 8] &= _V[(opcode & 0x00f0) >> 4];
+            _pc += 2;
         }
 
         //0x8XY3 : Sets VX to VX xor VY.
         private void CpuSetVXToVXXorVY(UInt16 opcode){
-            
+            _V[(opcode & 0x0f00) >> 8] ^= _V[(opcode & 0x00f0) >> 4];
+            _pc += 2;
         }
 
         //0x8XY4 : Adds VY to VX. VF is set to 1 when there's a carry, and to 0 when there is not.
         private void CpuAddVYToVX(UInt16 opcode){
-            
+            var sum = _V[(opcode & 0x0f00) >> 8] + _V[(opcode & 0x00f0) >> 4];
+            _V[0xf] = (Byte)(sum > 0xff ? 1 : 0);
+            _V[(opcode & 0x0f00) >> 8] = (Byte)(sum > 0xff ? sum - (0xff+1) : sum);
+            _pc += 2;
         }
 
         //0x8XY5 : VY is subtracted from VX. VF is set to 0 when there's a borrow, and 1 when there is not.
         private void CpuSubstractVYFromVX(UInt16 opcode){
-
+            if(_V[(opcode & 0x0f00) >> 8] > _V[(opcode & 0x00f0) >> 4]){
+                _V[0xf] = 1;
+                _V[(opcode & 0x0f00) >> 8] -= _V[(opcode & 0x00f0) >> 4];
+            }
+            else{
+                _V[0xf] = 0;
+                _V[(opcode & 0x0f00) >> 8] = (Byte)((0xff+1) + _V[(opcode & 0x0f00) >> 8] - _V[(opcode & 0x00f0) >> 4]);
+            }
+            _pc += 2;
         }
 
         //0x8XY6 : Stores the least significant bit of VX in VF and then shifts VX to the right by 1.
         private void CpuStoreVXBitInVFAndShiftToRight(UInt16 opcode){
-
+            _V[0xf] = (Byte)(_V[(opcode & 0x0f00) >> 8] & 1);
+            _V[(opcode & 0x0f00) >> 8] >>= 1;
+            _pc += 2;
         }
 
         //0x8XY7 : Sets VX to VY minus VX. VF is set to 0 when there's a borrow, and 1 when there is not.
         private void CpuSetVXToVYMinusVX(UInt16 opcode){
-
+            if(_V[(opcode & 0x0f00) >> 8] > _V[(opcode & 0x00f0) >> 4]){
+                _V[0xf] = 0;
+                _V[(opcode & 0x0f00) >> 8] = (Byte)((0xff+1) + _V[(opcode & 0x00f0) >> 4] - _V[(opcode & 0x0f00) >> 8]);
+            }
+            else{
+                _V[0xf] = 1;
+                _V[(opcode & 0x0f00) >> 8] = (Byte)(_V[(opcode & 0x00f0) >> 4] - _V[(opcode & 0x0f00) >> 8]);
+            }
+            _pc += 2;
         }
 
         //0x8XYE : Stores the most significant bit of VX in VF and then shifts VX to the left by 1.
         private void CpuStoreVXBitInVFAndShiftToLeft(UInt16 opcode){
-
+            _V[0xf] = (Byte)(_V[(opcode & 0x0f00) >> 8] >> 7);
+            _V[(opcode & 0x0f00) >> 8] <<= 1;
+            _pc += 2;
         }
 
         //0x9XY0 : Skips the next instruction if VX does not equal VY. (Usually the next instruction is a jump to skip a code block);
         private void CpuSkipIfVXNotEqualsVY(UInt16 opcode){
-
+            if(_V[(opcode & 0x0f00) >> 8] != _V[(opcode & 0x00f0) >> 4]){
+                _pc += 4;
+            }
+            else{
+                _pc += 2;
+            }
         }
 
         //0xANNN : Sets I to the address NNN.
         private void CpuSetIToNNN(UInt16 opcode){
-
+            _I = (UInt16)(opcode & 0x0fff);
+            _pc += 2;
         }
 
         //0xBNNN : Jumps to the address NNN plus V0.
         private void CpuJumpToNNNPlusV0(UInt16 opcode){
-
+            _pc = (UInt16)((opcode & 0x0fff) + _V[0]);
         }
 
         //0xCXNN : Sets VX to the result of a bitwise and operation on a random number (Typically: 0 to 255) and NN.
         private void CpuSetVXToBitwiseAndOnRandomAndNN(UInt16 opcode){
-
+            Random r = new Random();
+            _V[(opcode & 0x0f00) >> 8] = (Byte)(r.Next(0xFF+1) & (opcode & 0x00ff));
+            _pc += 2;
         }
 
         //0xDXYN : Draws a sprite at coordinate (VX, VY) that has a width of 8 pixels and a height of N pixels. Each row of 8 pixels is read as bit-coded starting from memory location I; I value does not change after the execution of this instruction. As described above, VF is set to 1 if any screen pixels are flipped from set to unset when the sprite is drawn, and to 0 if that does not happen
         private void CpuDrawSpriteAtVXVY(UInt16 opcode){
+            //Get the position from the registers
+            UInt16 x = _V[(opcode & 0x0f00) >> 8];
+            UInt16 y = _V[(opcode & 0x00f0) >> 4];
 
+            //Number of lines of 8 pixels width
+            UInt16 height = (UInt16)(opcode & 0x000f);
+            
+            //Reset the VF register
+            _V[0xf] = 0;
+
+            //Iterate through each of the sprite lines starting at address I
+            for(int i=0; i < height; i++){
+                var line = _memory[_I + i];
+
+                for(int j=0; j < 8; j++){
+                    //Check if the pixel is set to 1 in the line
+                    if((line & (0x80 >> j)) != 0){
+                        //Update the VF register if the pixel was already set to 1
+                        if(gfx[( x + j + ((y + i) * DISPLAY_WIDTH) )] == 1){
+                            _V[0xf] = 1;
+                        }
+                        //Flip the pixel in the framebuffer using a XOR
+                        gfx[( x + j + ((y + i) * DISPLAY_WIDTH) )] ^= 1;
+                    }
+                }
+            }
+
+            drawFlag = true;
+            _pc += 2;
         }
 
         private void OpCode0xE(UInt16 opcode){
-            _0xEDelegates[(opcode & 0x000F)](opcode);
+            var func = _0xEDelegates[(opcode & 0x000F)];
+            //Console.WriteLine(_pc+" "+func.Method.Name+" "+opcode.ToString("X4"));
+            func(opcode);
         }
 
         //0xEX9E : Skips the next instruction if the key stored in VX is pressed. (Usually the next instruction is a jump to skip a code block);
         private void CpuSkipIfKeyPressed(UInt16 opcode){
-
+            if(_input.key[_V[(opcode & 0x0f00) >> 8]] != 0){
+                _pc += 4;
+            }
+            else{
+                _pc += 2;
+            }
         }
 
         //0xEXA1 : Skips the next instruction if the key stored in VX is not pressed. (Usually the next instruction is a jump to skip a code block);
         private void CpuSkipIfKeyNotPressed(UInt16 opcode){
-
+            if(_input.key[_V[(opcode & 0x0f00) >> 8]] == 0){
+                _pc += 4;
+            }
+            else{
+                _pc += 2;
+            }
         }
 
         private void OpCode0xF(UInt16 opcode){
-            _0xFDelegates[(opcode & 0x00FF)](opcode);
+            var func = _0xFDelegates[(opcode & 0x00FF)];
+            //Console.WriteLine(_pc+" "+func.Method.Name+" "+opcode.ToString("X4"));
+            func(opcode);
         }
 
         //0xFX07 : Sets VX to the value of the delay timer.
         private void CpuSetVXToDelayTimerValue(UInt16 opcode){
-
+            _V[(opcode & 0x0f00) >> 8] = _delay_timer;
+            _pc += 2;
         }
 
         //0xFX0A : A key press is awaited, and then stored in VX. (Blocking Operation. All instruction halted until next key event);
         private void CpuWaitForKeyPressAndStoreInVX(UInt16 opcode){
-
+            for(int i=0; i < _input.key.Length; i++){
+                if(_input.key[i]!=0){
+                    _V[(opcode & 0x0f00) >> 8] = (Byte)i;
+                    _pc += 2;
+                    return;
+                }
+            }
         }
 
         //0xFX15 : Sets the delay timer to VX.
         private void CpuSetDelayTimerToVX(UInt16 opcode){
-
+            _delay_timer = _V[(opcode & 0x0f00) >> 8];
+            _pc += 2;
         }
 
         //0xFX18 : Sets the sound timer to VX.
         private void CpuSetSoundTimerToVX(UInt16 opcode){
-
+            _sound_timer = _V[(opcode & 0x0f00) >> 8];
+            _pc += 2;
         }
 
         //0xFX1E : Adds VX to I. VF is not affected.
         private void CpuAddVXToI(UInt16 opcode){
-
+            _I += _V[(opcode & 0x0f00) >> 8];
+            _pc += 2;
         }
 
         //0xFX29 : Sets I to the location of the sprite for the character in VX. Characters 0-F (in hexadecimal) are represented by a 4x5 font.
         private void CpuSetIToSpriteLocationInVX(UInt16 opcode){
-
+            _I = (UInt16)(_V[(opcode & 0x0f00) >> 8] * 5);
+            _pc += 2;
         }
 
         //0xFX33 : Stores the binary-coded decimal representation of VX, with the most significant of three digits at the address in I, the middle digit at I plus 1, and the least significant digit at I plus 2. (In other words, take the decimal representation of VX, place the hundreds digit in memory at location in I, the tens digit at location I+1, and the ones digit at location I+2.);
         private void CpuStoreBCDOfVX(UInt16 opcode){
-
+            _memory[_I] = (Byte)(_V[(opcode & 0x0f00) >> 8] / 100);
+            _memory[_I + 1] = (Byte)( (_V[(opcode & 0x0f00) >> 8] % 100) / 10);
+            _memory[_I + 2] = (Byte)( (_V[(opcode & 0x0f00) >> 8] % 100) % 10);
+            _pc += 2;
         }
 
         //0xFX55 : Stores V0 to VX (including VX) in memory starting at address I. The offset from I is increased by 1 for each value written, but I itself is left unmodified.
         private void CpuStoreV0ToVXAtAddressI(UInt16 opcode){
-
+            for(int i=0; i < (opcode & 0x0f00) >> 8; i++){
+                _memory[_I + i] = _V[i];
+            }
+            _pc += 2;       
         }
 
         //0xFX65 : Fills V0 to VX (including VX) with values from memory starting at address I. The offset from I is increased by 1 for each value written, but I itself is left unmodified.
-        private void CpuFillsV0ToVXWithValuesAtAddressI(UInt16 opcode){
-
+        private void CpuFillV0ToVXWithValuesAtAddressI(UInt16 opcode){
+            for(int i=0; i < (opcode & 0x0f00) >> 8; i++){
+                _V[i] = _memory[_I + i];
+            }
+            _pc += 2;
         }
     }
 }
