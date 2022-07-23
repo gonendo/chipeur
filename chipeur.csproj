@@ -12,5 +12,9 @@
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
       <TargetPath>assets/%(Filename)%(Extension)</TargetPath>
     </ContentWithTargetPath>
+    <ContentWithTargetPath Include="roms\*.*">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+      <TargetPath>roms/%(Filename)%(Extension)</TargetPath>
+    </ContentWithTargetPath>
   </ItemGroup>
 </Project>
