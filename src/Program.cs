@@ -4,6 +4,7 @@ using static SDL2.SDL;
 using chipeur.cpu;
 using chipeur.graphics;
 using chipeur.input;
+using chipeur.sound;
 
 namespace chipeur
 {
@@ -15,15 +16,19 @@ namespace chipeur
                 throw new ArgumentException("Missing game path");
             }
 
-            Chip8 chip8 = new Chip8();
-            Graphics graphics = new Graphics();
-            if(graphics.Initialize() < 0){
-                throw new Exception("Graphics couldn't initialize:\n"+graphics.GetError());
+            if(SDL_Init(SDL_INIT_VIDEO | SDL_INIT_AUDIO) < 0){
+                throw new Exception("SDL couldn't initialize : " + SDL_GetError());
             }
+
+            Graphics graphics = new Graphics();
+            graphics.Initialize();
+
+            Sounds.Initialize();
 
             Input input = new Input();
             input.Initialize();
-
+            
+            Chip8 chip8 = new Chip8();
             chip8.Initialize(input);
             chip8.LoadGame(args[0]);
 
@@ -35,6 +40,7 @@ namespace chipeur
                     switch(e.type){
                         case SDL_EventType.SDL_QUIT:
                             graphics.Destroy();
+                            Sounds.Destroy();
                             SDL_Quit();
                             return;
                         case SDL_EventType.SDL_KEYDOWN:
@@ -57,6 +63,10 @@ namespace chipeur
                 if(chip8.drawFlag){
                     chip8.drawFlag = false;
                     graphics.Draw(chip8.gfx);
+                }
+
+                if(chip8.NeedToBeep()){
+                    Sounds.Beep();
                 }
 
                 Thread.Sleep(1);

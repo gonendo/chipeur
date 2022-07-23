@@ -151,12 +151,17 @@ namespace chipeur.cpu
             if(_delay_timer > 0){
                 --_delay_timer;
             }
+        }
+
+        public bool NeedToBeep(){
+            bool play = false;
             if(_sound_timer > 0){
                 if(_sound_timer == 1){
-                    //TODO BEEP
+                    play = true;
                 }
                 --_sound_timer;
             }
+            return play;
         }
 
         private void OpCode0x0(UInt16 opcode){

@@ -7,4 +7,10 @@
   <ItemGroup>
     <PackageReference Include="ppy.SDL2-CS" Version="1.0.565-alpha" />
   </ItemGroup>
+  <ItemGroup>
+    <ContentWithTargetPath Include="assets\*.*">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+      <TargetPath>assets/%(Filename)%(Extension)</TargetPath>
+    </ContentWithTargetPath>
+  </ItemGroup>
 </Project>
