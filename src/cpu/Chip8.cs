@@ -218,7 +218,7 @@ namespace chipeur.cpu
 
         //0x5XY0 : Skips the next instruction if VX equals VY. (Usually the next instruction is a jump to skip a code block);
         private void CpuSkipIfVXEqualsVY(UInt16 opcode){
-            if(_V[(opcode & 0x0f00) >> 8] == _V[(opcode & 0x00f0 >> 4)]){
+            if(_V[(opcode & 0x0f00) >> 8] == _V[(opcode & 0x00f0) >> 4]){
                 _pc += 4;
             }
             else{
@@ -455,15 +455,16 @@ namespace chipeur.cpu
 
         //0xFX33 : Stores the binary-coded decimal representation of VX, with the most significant of three digits at the address in I, the middle digit at I plus 1, and the least significant digit at I plus 2. (In other words, take the decimal representation of VX, place the hundreds digit in memory at location in I, the tens digit at location I+1, and the ones digit at location I+2.);
         private void CpuStoreBCDOfVX(UInt16 opcode){
-            _memory[_I] = (Byte)(_V[(opcode & 0x0f00) >> 8] / 100);
-            _memory[_I + 1] = (Byte)( (_V[(opcode & 0x0f00) >> 8] % 100) / 10);
-            _memory[_I + 2] = (Byte)( (_V[(opcode & 0x0f00) >> 8] % 100) % 10);
+            Byte vx = _V[(opcode & 0x0f00) >> 8];
+            _memory[_I] = (Byte)(vx / 100);
+            _memory[_I + 1] = (Byte)(vx % 100 / 10);
+            _memory[_I + 2] = (Byte)(vx % 100 % 10);
             _pc += 2;
         }
 
         //0xFX55 : Stores V0 to VX (including VX) in memory starting at address I. The offset from I is increased by 1 for each value written, but I itself is left unmodified.
         private void CpuStoreV0ToVXAtAddressI(UInt16 opcode){
-            for(int i=0; i < (opcode & 0x0f00) >> 8; i++){
+            for(int i=0; i <= (opcode & 0x0f00) >> 8; i++){
                 _memory[_I + i] = _V[i];
             }
             _pc += 2;       
@@ -471,7 +472,7 @@ namespace chipeur.cpu
 
         //0xFX65 : Fills V0 to VX (including VX) with values from memory starting at address I. The offset from I is increased by 1 for each value written, but I itself is left unmodified.
         private void CpuFillV0ToVXWithValuesAtAddressI(UInt16 opcode){
-            for(int i=0; i < (opcode & 0x0f00) >> 8; i++){
+            for(int i=0; i <= (opcode & 0x0f00) >> 8; i++){
                 _V[i] = _memory[_I + i];
             }
             _pc += 2;
