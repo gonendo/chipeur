@@ -3,7 +3,10 @@
 # chipeur
 CHIP8 Emulator written in C# using Veldrid, ImageSharp and ImgUI.
 
-**usage**:
+### Requirements:
+You need a .NET runtime (>= 6.0) to run this program. You can download one [here](https://aka.ms/dotnet/download).
+
+### Usage:
 - Launch the Emulator (chipeur executable)
 - File > Load a rom
 
@@ -11,7 +14,8 @@ You can also automatically launch a rom from the command line with this syntax:
 
 <code>./chipeur ROM</code>
 
-**Controls**
+
+### Controls:
 
 *Azerty keyboard*:
 | 1 | 2 | 3 | 4 |
