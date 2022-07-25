@@ -1,24 +1,40 @@
 ﻿using System;
 using System.Threading;
-using static SDL2.SDL;
 using chipeur.cpu;
 using chipeur.graphics;
 using chipeur.input;
 using chipeur.sound;
+using chipeur.gui;
 
 namespace chipeur
 {
     class Program
     {
+        public const string VERSION = "2.0";
+        private static bool _running = true;
+        private static Chip8 _chip8;
+        private static CancellationTokenSource _cts;
+        private static PeriodicTimer _chip8EmulationTimer;
+        private static PeriodicTimer _chip8TimersTimer;
+
         static void Main(string[] args)
         {
-            if(args.Length==0){
-                throw new ArgumentException("Missing game path");
-            }
-
-            if(SDL_Init(SDL_INIT_VIDEO | SDL_INIT_AUDIO) < 0){
-                throw new Exception("SDL couldn't initialize : " + SDL_GetError());
-            }
+            Gui gui = new Gui();
+            Gui.Quit += () =>
+            {
+                _running = false;
+            };
+            Gui.ChangeSpeed += (int speedInHz) =>
+            {
+                Chip8.speedInHz = speedInHz;
+                StartEmulationThread();
+            };
+            Gui.LoadRom += (string romPath) =>
+            {
+                _chip8.Initialize();
+                _chip8.LoadGame(romPath);
+                StartEmulationThread();
+            };
 
             Graphics graphics = new Graphics();
             graphics.Initialize();
@@ -28,48 +44,71 @@ namespace chipeur
             Input input = new Input();
             input.Initialize();
             
-            Chip8 chip8 = new Chip8();
-            chip8.Initialize(input);
-            chip8.LoadGame(args[0]);
+            _chip8 = new Chip8(input);
+            _chip8.Initialize();
+            if(args.Length > 0){
+                _chip8.LoadGame(args[0]);
+            }
+            else{
+                Gui.menuBarVisible = true;
+            }
 
-            while(true){
-                chip8.EmulateCycle();
+            StartEmulationThread();
 
-                SDL_Event e;
-                if(SDL_PollEvent(out e) == 1){
-                    switch(e.type){
-                        case SDL_EventType.SDL_QUIT:
-                            graphics.Destroy();
-                            Sounds.Destroy();
-                            SDL_Quit();
-                            return;
-                        case SDL_EventType.SDL_KEYDOWN:
-                            for(int i=0; i < input.keymap.Length; i++){
-                                if(e.key.keysym.sym == input.keymap[i]){
-                                    input.key[i] = 1;
-                                }
-                            }
-                            break;
-                        case SDL_EventType.SDL_KEYUP:
-                            for(int i=0; i < input.keymap.Length; i++){
-                                if(e.key.keysym.sym == input.keymap[i]){
-                                    input.key[i] = 0;
-                                }
-                            }
-                            break;
-                    }
+            CancellationTokenSource cts2 = new CancellationTokenSource();
+            ThreadPool.QueueUserWorkItem(new WaitCallback(DecreaseChip8Timers), cts2.Token); 
+
+            while(_running){
+                if(_chip8.drawFlag){
+                    _chip8.drawFlag = false;
+                    graphics.Draw(_chip8.gfx);
                 }
 
-                if(chip8.drawFlag){
-                    chip8.drawFlag = false;
-                    graphics.Draw(chip8.gfx);
-                }
-
-                if(chip8.NeedToBeep()){
+                if(_chip8.needToBeep){
                     Sounds.Beep();
+                    _chip8.needToBeep = false;
                 }
 
-                Thread.Sleep(1);
+                gui.Update(graphics.pixelsBuffer);
+            }
+
+            StopEmulationThread();
+            _chip8TimersTimer.Dispose();
+            cts2.Cancel();
+            cts2.Dispose();
+            gui.Destroy();
+        }
+
+        private static void StartEmulationThread(){
+            if(_chip8.gameLoaded){
+                Gui.menuBarVisible = false;
+                StopEmulationThread();
+                _cts = new CancellationTokenSource();
+                ThreadPool.QueueUserWorkItem(new WaitCallback(EmulateChip8Cycle), _cts.Token);
+            }
+        }
+
+        private static void StopEmulationThread(){
+            if(_cts != null){
+                _chip8EmulationTimer.Dispose();
+                _cts.Cancel();
+                _cts.Dispose();
+            }
+        }
+
+        private static async void EmulateChip8Cycle(object obj){
+            _chip8EmulationTimer = new PeriodicTimer(TimeSpan.FromMilliseconds((double)1/Chip8.speedInHz*1000));
+            while(await _chip8EmulationTimer.WaitForNextTickAsync()){
+                _chip8.EmulateCycle();
+            }
+        }
+
+        private static async void DecreaseChip8Timers(object obj){
+            _chip8TimersTimer = new PeriodicTimer(TimeSpan.FromMilliseconds((double)1/60*1000));
+            while(await _chip8TimersTimer.WaitForNextTickAsync()){
+                if(_chip8.gameLoaded){
+                    _chip8.DecreaseTimers();
+                }
             }
         }
     }

@@ -7,10 +7,13 @@ namespace chipeur.cpu
     class Chip8{
         public const int DISPLAY_WIDTH = 64;
         public const int DISPLAY_HEIGHT = 32;
+        public static int speedInHz = 500;
         private const int MEMORY_SIZE = 4096;
         private const int MEMORY_PROGRAM_START = 0x200;
 
         public bool drawFlag {get; set;}
+        public bool needToBeep {get; set;}
+        public bool gameLoaded {get {return _gamePath!=null;}}
         public Byte[] gfx {get; private set;}
         private Byte[] _memory;
         private UInt16[] _stack;
@@ -23,6 +26,8 @@ namespace chipeur.cpu
 
         private Byte _sound_timer;
         private Byte _delay_timer;
+
+        private string _gamePath;
 
         private Input _input;
 
@@ -53,29 +58,8 @@ namespace chipeur.cpu
         private InstructionDelegate[] _0xEDelegates = new InstructionDelegate[15];
         private InstructionDelegate[] _0xFDelegates = new InstructionDelegate[102];
 
-        public Chip8(){
-
-        }
-
-        public void Initialize(Input input){
+        public Chip8(Input input){
             _input = input;
-            _pc = MEMORY_PROGRAM_START;
-            _opcode = 0;
-            _I = 0;
-            _sp = 0;
-
-            gfx = new Byte[DISPLAY_WIDTH * DISPLAY_HEIGHT];
-            _memory = new Byte[MEMORY_SIZE];
-            _stack = new UInt16[16];
-            _V = new Byte[16];
-
-            //load fontset
-            for(int i=0; i < 80; i++){
-                _memory[i] = _chip8_fontset[i];
-            }
-
-            _sound_timer = 0;
-            _delay_timer = 0;
 
             //function pointers
             _delegates[0x0] = OpCode0x0;
@@ -118,6 +102,26 @@ namespace chipeur.cpu
             _0xFDelegates[0x0065] = CpuFillV0ToVXWithValuesAtAddressI;
         }
 
+        public void Initialize(){
+            _pc = MEMORY_PROGRAM_START;
+            _opcode = 0;
+            _I = 0;
+            _sp = 0;
+
+            gfx = new Byte[DISPLAY_WIDTH * DISPLAY_HEIGHT];
+            _memory = new Byte[MEMORY_SIZE];
+            _stack = new UInt16[16];
+            _V = new Byte[16];
+
+            //load fontset
+            for(int i=0; i < 80; i++){
+                _memory[i] = _chip8_fontset[i];
+            }
+
+            _sound_timer = 0;
+            _delay_timer = 0;
+        }
+
         public void LoadGame(string gamePath){
             Console.WriteLine("Loading game "+gamePath);
             using var binaryReader = new BinaryReader(File.Open(gamePath, FileMode.Open));
@@ -133,6 +137,7 @@ namespace chipeur.cpu
             else{
                 throw new Exception("Invalid rom size");
             }
+            _gamePath = gamePath;
         }
 
         public void EmulateCycle(){
@@ -147,21 +152,19 @@ namespace chipeur.cpu
             var func = _delegates[delegateIndex];
             //Console.WriteLine(_pc+" "+func.Method.Name+" "+_opcode.ToString("X4"));
             func(_opcode);
+        }
 
+        public void DecreaseTimers(){
             if(_delay_timer > 0){
                 --_delay_timer;
             }
-        }
 
-        public bool NeedToBeep(){
-            bool play = false;
             if(_sound_timer > 0){
                 if(_sound_timer == 1){
-                    play = true;
+                    needToBeep = true;
                 }
                 --_sound_timer;
             }
-            return play;
         }
 
         private void OpCode0x0(UInt16 opcode){
