@@ -2,6 +2,9 @@ using System;
 using System.IO;
 using System.Numerics;
 using System.Text;
+#if Windows
+using System.Windows.Forms;
+#endif
 using Veldrid;
 using Veldrid.Sdl2;
 using Veldrid.StartupUtilities;
@@ -10,7 +13,10 @@ using Veldrid.SPIRV;
 using SixLabors.ImageSharp;
 using SixLabors.ImageSharp.PixelFormats;
 using ImGuiNET;
+using static SDL2.SDL;
+#if Linux
 using NativeFileDialogSharp;
+#endif
 using chipeur.cpu;
 using chipeur.input;
 using chipeur.sound;
@@ -24,7 +30,7 @@ namespace chipeur.gui
         private static Sdl2Window _window;
         private static CommandList _commandList;
         private static ImGuiRenderer _imguiRenderer;
-        private static Image<Rgba32> _image; 
+        private static Image<Rgba32> _image;
         private static DeviceBuffer _vertexBuffer;
         private static DeviceBuffer _indexBuffer;
         private static Shader[] _shaders;
@@ -55,12 +61,24 @@ namespace chipeur.gui
         public static bool menuBarVisible;
 
         public Gui(){
+            SDL2.SDL.SDL_DisplayMode current;
+            int displayWidth = 0;
+            int displayHeight = 0;
+            for(int i=0; i < SDL2.SDL.SDL_GetNumVideoDisplays(); ++i){
+                if(SDL2.SDL.SDL_GetCurrentDisplayMode(i, out current) == 0){
+                    displayWidth = current.w;
+                    displayHeight = current.h;
+                    break;
+                }
+            }
+            int winX = displayWidth > 0 ? displayWidth/2 - WINDOW_WIDTH/2 : 100;
+            int winY = displayHeight > 0 ? displayHeight/2 - WINDOW_HEIGHT/2 : 100;
             VeldridStartup.CreateWindowAndGraphicsDevice(
-                new WindowCreateInfo(50, 50, WINDOW_WIDTH, WINDOW_HEIGHT, WindowState.Normal, "Chipeur - Chip8 Emulator"),
+                new WindowCreateInfo(winX, winY, WINDOW_WIDTH, WINDOW_HEIGHT, WindowState.Normal, "Chipeur - Chip8 Emulator"),
                 new GraphicsDeviceOptions(true, null, true, ResourceBindingModel.Improved, true, true),
                 out _window,
                 out _graphicsDevice);
-            
+
             _imguiRenderer = new ImGuiRenderer(
                 _graphicsDevice,
                 _graphicsDevice.MainSwapchain.Framebuffer.OutputDescription,
@@ -201,10 +219,18 @@ namespace chipeur.gui
 
         private static void HandleUiEvents(){
             if(_imguiLoadRom){
-                DialogResult result = Dialog.FileOpen(null, Directory.GetCurrentDirectory() + "/roms");
-                if(result.Path != null){
+                #if Linux
+                  NativeFileDialogSharp.DialogResult result = Dialog.FileOpen(null, Directory.GetCurrentDirectory() + "/roms");
+                  if(result.Path != null){
                     LoadRom.Invoke(result.Path);
-                }
+                  }
+                #elif Windows
+                   OpenFileDialog openFileDialog = new OpenFileDialog();
+                   openFileDialog.InitialDirectory = System.IO.Path.GetFullPath(Directory.GetCurrentDirectory() + "/roms");
+                   if(openFileDialog.ShowDialog() == System.Windows.Forms.DialogResult.OK){
+                     LoadRom.Invoke(openFileDialog.FileName);
+                   }
+                #endif
                 _imguiLoadRom = false;
             }
             if(_imguiQuit){
@@ -283,7 +309,7 @@ namespace chipeur.gui
 
         public void Update(UInt32[] gamePixelsBuffer){
             HandleUiEvents();
-            
+
             if(_window.Exists){
                 InputSnapshot snapshot = _window.PumpEvents();
 

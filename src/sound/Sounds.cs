@@ -10,7 +10,7 @@ namespace chipeur.sound
         public static bool mute;
 
         public static void Initialize(){
-            _initialized = SDL_Init(SDL_INIT_AUDIO) == 0;
+            _initialized = SDL_WasInit(SDL_INIT_AUDIO) != 0;
             if(_initialized){
                 if(Mix_OpenAudio(44100, MIX_DEFAULT_FORMAT, 2, 1024) == -1){
                     Console.WriteLine("Unable to initialize audio device : " + Mix_GetError());
