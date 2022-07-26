@@ -1,5 +1,5 @@
 <Project Sdk="Microsoft.NET.Sdk">
-  <PropertyGroup Condition="'$(OS)'=='Linux'">
+  <PropertyGroup Condition="'$(OS)'=='Unix'">
     <TargetFramework>net6.0</TargetFramework>
     <OutputType>Exe</OutputType>
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
@@ -12,7 +12,7 @@
     <UseWindowsForms>true</UseWindowsForms>
     <DefineConstants>Windows;$(DefineConstants)</DefineConstants>
   </PropertyGroup>
-  <ItemGroup Condition="'$(OS)'=='Linux'">
+  <ItemGroup Condition="'$(OS)'=='Unix'">
     <PackageReference Include="NativeFileDialogSharp" Version="0.5.0" />
   </ItemGroup>
   <ItemGroup>
