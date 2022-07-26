@@ -7,7 +7,7 @@
   </PropertyGroup>
   <PropertyGroup Condition="'$(OS)'=='Windows'">
     <TargetFramework>net6.0-windows</TargetFramework>
-    <OutputType>Exe</OutputType>
+    <OutputType>WinExe</OutputType>
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
     <UseWindowsForms>true</UseWindowsForms>
     <DefineConstants>Windows;$(DefineConstants)</DefineConstants>
@@ -40,4 +40,7 @@
       <TargetPath>%(Filename)%(Extension)</TargetPath>
     </ContentWithTargetPath>
   </ItemGroup>
+  <Target Name="CustomTarget" AfterTargets="_PublishNoBuildAlternative">
+    <Delete Files="$(PublishDir)\chipeur.dll.config"/>
+  </Target>
 </Project>

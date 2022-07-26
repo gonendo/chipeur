@@ -11,7 +11,7 @@ namespace chipeur
 {
     class Program
     {
-        public const string VERSION = "2.1";
+        public const string VERSION = "2.2";
         private static bool _running = true;
         private static Chip8 _chip8;
         private static CancellationTokenSource _cts;
@@ -24,7 +24,7 @@ namespace chipeur
             if(SDL_Init(SDL_INIT_VIDEO | SDL_INIT_AUDIO) < 0){
                 throw new Exception("Can't initialize SDL : "+SDL_GetError());
             }
-            
+
             Gui gui = new Gui();
             Gui.Quit += () =>
             {
