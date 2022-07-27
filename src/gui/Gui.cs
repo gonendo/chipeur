@@ -74,8 +74,8 @@ namespace chipeur.gui
             int winX = displayWidth > 0 ? displayWidth/2 - WINDOW_WIDTH/2 : 100;
             int winY = displayHeight > 0 ? displayHeight/2 - WINDOW_HEIGHT/2 : 100;
             VeldridStartup.CreateWindowAndGraphicsDevice(
-                new WindowCreateInfo(winX, winY, WINDOW_WIDTH, WINDOW_HEIGHT, WindowState.Normal, "Chipeur - Chip8 Emulator"),
-                new GraphicsDeviceOptions(true, null, true, ResourceBindingModel.Improved, true, true),
+                new WindowCreateInfo(winX, winY, WINDOW_WIDTH, WINDOW_HEIGHT, WindowState.Hidden, "Chipeur - Chip8 Emulator"),
+                new GraphicsDeviceOptions(false, null, true, ResourceBindingModel.Improved, true, true),
                 out _window,
                 out _graphicsDevice);
 
@@ -311,6 +311,9 @@ namespace chipeur.gui
             HandleUiEvents();
 
             if(_window.Exists){
+                if(!_window.Visible){
+                    _window.Visible = true;
+                }
                 InputSnapshot snapshot = _window.PumpEvents();
 
                 if(!_window.Exists){
