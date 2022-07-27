@@ -356,34 +356,40 @@ namespace chipeur.cpu
         //0xDXYN : Draws a sprite at coordinate (VX, VY) that has a width of 8 pixels and a height of N pixels. Each row of 8 pixels is read as bit-coded starting from memory location I; I value does not change after the execution of this instruction. As described above, VF is set to 1 if any screen pixels are flipped from set to unset when the sprite is drawn, and to 0 if that does not happen
         private void CpuDrawSpriteAtVXVY(UInt16 opcode){
             //Get the position from the registers
-            UInt16 x = _V[(opcode & 0x0f00) >> 8];
-            UInt16 y = _V[(opcode & 0x00f0) >> 4];
+            byte x = _V[(opcode & 0x0f00) >> 8];
+            byte y = _V[(opcode & 0x00f0) >> 4];
 
             //Number of lines of 8 pixels width
-            UInt16 height = (UInt16)(opcode & 0x000f);
+            byte height = (byte)(opcode & 0x000f);
+
+            for(int i=x; i >= DISPLAY_WIDTH; i -= DISPLAY_WIDTH){
+                x -= DISPLAY_WIDTH;
+            }
+
+            for(int i=y; i >= DISPLAY_HEIGHT; i -= DISPLAY_HEIGHT){
+                y -= DISPLAY_HEIGHT;
+            }
             
-            //Reset the VF register
-            _V[0xf] = 0;
+            bool erases = false;
 
             //Iterate through each of the sprite lines starting at address I
             for(int i=0; i < height; i++){
                 var line = _memory[_I + i];
 
                 for(int j=0; j < 8; j++){
-                    //Check if the pixel is set to 1 in the line
-                    if((line & (0x80 >> j)) != 0){
-                        //Update the VF register if the pixel was already set to 1
-                        var pixelIndex =  x + j + ((y + i) * DISPLAY_WIDTH);
-                        if(pixelIndex < DISPLAY_WIDTH * DISPLAY_HEIGHT){
-                            if(gfx[pixelIndex] == 1){
-                                _V[0xf] = 1;
-                            }
-                            //Flip the pixel in the framebuffer using a XOR
-                            gfx[pixelIndex] ^= 1;
-                        }
+                    var pixelIndex =  x + j + ((y + i) * DISPLAY_WIDTH);
+                    if(pixelIndex > DISPLAY_WIDTH * DISPLAY_HEIGHT){
+                        continue;
                     }
+                    bool lineErases = (line & (0x80 >> j)) != 0;
+                    if(lineErases){
+                        gfx[pixelIndex] ^= 1;
+                    }
+                    erases = erases || lineErases;
                 }
             }
+
+            _V[0xf] = (byte)(erases ? 1 : 0);
 
             drawFlag = true;
             _pc += 2;
