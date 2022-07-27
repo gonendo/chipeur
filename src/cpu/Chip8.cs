@@ -378,7 +378,7 @@ namespace chipeur.cpu
 
                 for(int j=0; j < 8; j++){
                     var pixelIndex =  x + j + ((y + i) * DISPLAY_WIDTH);
-                    if(pixelIndex > DISPLAY_WIDTH * DISPLAY_HEIGHT){
+                    if(pixelIndex >= DISPLAY_WIDTH * DISPLAY_HEIGHT){
                         continue;
                     }
                     bool lineErases = (line & (0x80 >> j)) != 0;
