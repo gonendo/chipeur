@@ -281,6 +281,13 @@ namespace chipeur.gui
             if(!_imguiAboutOpen){
                 _aboutWindowVisible = false;
             }
+
+            _imguiAzerty = Input.keyboardLayout == Input.KEYBOARD_LAYOUT_AZERTY;
+            _imguiQwerty = Input.keyboardLayout == Input.KEYBOARD_LAYOUT_QWERTY;
+            _imguiSpeed60hz = Chip8.speedInHz == 60;
+            _imguiSpeed500hz = Chip8.speedInHz == 500;
+            _imguiSoundOn = !Sounds.mute;
+            _imguiSoundOff = Sounds.mute;
         }
 
         private static void DrawTexture(UInt32[] pixels){

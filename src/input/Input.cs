@@ -7,7 +7,7 @@ namespace chipeur.input
     class Input{
         public const int KEYBOARD_LAYOUT_AZERTY = 1;
         public const int KEYBOARD_LAYOUT_QWERTY = 2;
-        public static int keyboardLayout;
+        public static int keyboardLayout = KEYBOARD_LAYOUT_QWERTY;
         public Byte[] key {get; set;}
         private Key[] keymap = new Key[16]{
             Key.X,
