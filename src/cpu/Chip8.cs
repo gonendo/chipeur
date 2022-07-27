@@ -279,48 +279,49 @@ namespace chipeur.cpu
         //0x8XY4 : Adds VY to VX. VF is set to 1 when there's a carry, and to 0 when there is not.
         private void CpuAddVYToVX(UInt16 opcode){
             var sum = _V[(opcode & 0x0f00) >> 8] + _V[(opcode & 0x00f0) >> 4];
-            _V[0xf] = (Byte)(sum > 0xff ? 1 : 0);
             _V[(opcode & 0x0f00) >> 8] = (Byte)(sum > 0xff ? sum - (0xff+1) : sum);
+            _V[0xf] = (Byte)(sum > 0xff ? 1 : 0);
             _pc += 2;
         }
 
         //0x8XY5 : VY is subtracted from VX. VF is set to 0 when there's a borrow, and 1 when there is not.
         private void CpuSubstractVYFromVX(UInt16 opcode){
             if(_V[(opcode & 0x0f00) >> 8] > _V[(opcode & 0x00f0) >> 4]){
-                _V[0xf] = 1;
                 _V[(opcode & 0x0f00) >> 8] -= _V[(opcode & 0x00f0) >> 4];
+                _V[0xf] = 1;
             }
             else{
-                _V[0xf] = 0;
                 _V[(opcode & 0x0f00) >> 8] = (Byte)((0xff+1) + _V[(opcode & 0x0f00) >> 8] - _V[(opcode & 0x00f0) >> 4]);
+                _V[0xf] = 0;
             }
             _pc += 2;
         }
 
         //0x8XY6 : Stores the least significant bit of VX in VF and then shifts VX to the right by 1.
         private void CpuStoreVXBitInVFAndShiftToRight(UInt16 opcode){
-            _V[0xf] = (Byte)(_V[(opcode & 0x0f00) >> 8] & 1);
+            var bit = (Byte)(_V[(opcode & 0x0f00) >> 8] & 1);
             _V[(opcode & 0x0f00) >> 8] >>= 1;
+            _V[0xf] = (Byte)(bit > 0 ? 1 : 0);
             _pc += 2;
         }
 
         //0x8XY7 : Sets VX to VY minus VX. VF is set to 0 when there's a borrow, and 1 when there is not.
         private void CpuSetVXToVYMinusVX(UInt16 opcode){
             if(_V[(opcode & 0x0f00) >> 8] > _V[(opcode & 0x00f0) >> 4]){
-                _V[0xf] = 0;
                 _V[(opcode & 0x0f00) >> 8] = (Byte)((0xff+1) + _V[(opcode & 0x00f0) >> 4] - _V[(opcode & 0x0f00) >> 8]);
+                _V[0xf] = 0;
             }
             else{
-                _V[0xf] = 1;
                 _V[(opcode & 0x0f00) >> 8] = (Byte)(_V[(opcode & 0x00f0) >> 4] - _V[(opcode & 0x0f00) >> 8]);
+                _V[0xf] = 1;
             }
             _pc += 2;
         }
 
         //0x8XYE : Stores the most significant bit of VX in VF and then shifts VX to the left by 1.
         private void CpuStoreVXBitInVFAndShiftToLeft(UInt16 opcode){
-            _V[0xf] = (Byte)(_V[(opcode & 0x0f00) >> 8] >> 7);
             _V[(opcode & 0x0f00) >> 8] <<= 1;
+            _V[0xf] = (Byte)(_V[(opcode & 0x0f00) >> 8] >> 7);
             _pc += 2;
         }
 
