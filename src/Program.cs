@@ -37,9 +37,10 @@ namespace chipeur
             };
             Gui.LoadRom += (string romPath) =>
             {
+                StopEmulationThread();
                 _chip8.Initialize();
                 _chip8.LoadGame(romPath);
-                StartEmulationThread();
+                StartEmulationThread(false);
             };
             Gui.ChangeProfile += (int profileType) =>
             {
@@ -90,10 +91,12 @@ namespace chipeur
             gui.Destroy();
         }
 
-        private static void StartEmulationThread(){
+        private static void StartEmulationThread(bool stopEmulation=true){
             if(_chip8.gameLoaded){
                 Gui.menuBarVisible = false;
-                StopEmulationThread();
+                if(stopEmulation){
+                    StopEmulationThread();
+                }
                 _chip8EmulationTimer = true;
                 _cts = new CancellationTokenSource();
                 ThreadPool.QueueUserWorkItem(new WaitCallback(EmulateChip8Cycle), _cts.Token);
