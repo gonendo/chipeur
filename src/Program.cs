@@ -48,7 +48,6 @@ namespace chipeur
             };
 
             Graphics graphics = new Graphics();
-            graphics.Initialize();
 
             Sounds.Initialize();
 
@@ -81,7 +80,7 @@ namespace chipeur
                     _chip8.needToBeep = false;
                 }
 
-                gui.Update(graphics.pixelsBuffer);
+                gui.Update();
             }
 
             StopEmulationThread();

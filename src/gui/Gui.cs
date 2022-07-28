@@ -13,13 +13,13 @@ using Veldrid.SPIRV;
 using SixLabors.ImageSharp;
 using SixLabors.ImageSharp.PixelFormats;
 using ImGuiNET;
-using static SDL2.SDL;
 #if Linux
 using NativeFileDialogSharp;
 #endif
 using chipeur.cpu;
 using chipeur.input;
 using chipeur.sound;
+using chipeur.graphics;
 
 namespace chipeur.gui
 {
@@ -117,7 +117,10 @@ namespace chipeur.gui
             Configuration config = Configuration.Default.Clone();
             config.PreferContiguousImageBuffers  = true;
 
-            _image = new Image<Rgba32>(config, Chip8.DISPLAY_WIDTH, Chip8.DISPLAY_HEIGHT);
+            Chip8.ChangeDisplayResolution += (int displayWidth, int displayHeight) =>
+            {
+                _image = new Image<Rgba32>(config, displayWidth, displayHeight);
+            };
 
             CreateResources();
 
@@ -315,10 +318,10 @@ namespace chipeur.gui
             _imguiCompatibilitySuperChip = Chip8.profile == Chip8.PROFILE_SUPERCHIP; 
         }
 
-        private static void DrawTexture(UInt32[] pixels){
-            for(int i=0; i < Chip8.DISPLAY_WIDTH; i++){
-                for(int j=0; j < Chip8.DISPLAY_HEIGHT; j++){
-                    _image[i, j] = new Rgba32(pixels[i + j*Chip8.DISPLAY_WIDTH]);
+        private static void DrawTexture(){
+            for(int i=0; i < Chip8.displayWidth; i++){
+                for(int j=0; j < Chip8.displayHeight; j++){
+                    _image[i, j] = new Rgba32(Graphics.pixelsBuffer[i + j*Chip8.displayWidth]);
                 }
             }
 
@@ -339,7 +342,7 @@ namespace chipeur.gui
             _commandList.DrawIndexed(6, 1, 0, 0, 0);
         }
 
-        public void Update(UInt32[] gamePixelsBuffer){
+        public void Update(){
             HandleUiEvents();
 
             if(_window.Exists){
@@ -359,7 +362,7 @@ namespace chipeur.gui
                 _commandList.Begin();
                 _commandList.SetFramebuffer(_graphicsDevice.MainSwapchain.Framebuffer);
                 _commandList.ClearColorTarget(0, RgbaFloat.Black);
-                DrawTexture(gamePixelsBuffer);
+                DrawTexture();
                 _imguiRenderer.Render(_graphicsDevice, _commandList);
                 _commandList.End();
 

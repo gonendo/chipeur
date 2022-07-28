@@ -4,17 +4,16 @@ using chipeur.cpu;
 namespace chipeur.graphics
 {
     class Graphics{
-        public UInt32[] pixelsBuffer { get; private set;}
+        public static UInt32[] pixelsBuffer;
         public Graphics(){
-
-        }
-
-        public void Initialize(){
-            pixelsBuffer = new UInt32[Chip8.DISPLAY_WIDTH * Chip8.DISPLAY_HEIGHT];
+            Chip8.ChangeDisplayResolution += (int displayWidth, int displayHeight) =>
+            {
+                pixelsBuffer = new UInt32[displayWidth * displayHeight];
+            };
         }
 
         public void Draw(Byte[] gfxBuffer){
-            for(int i=0; i < Chip8.DISPLAY_WIDTH * Chip8.DISPLAY_HEIGHT; i++){
+            for(int i=0; i < Chip8.displayWidth * Chip8.displayHeight; i++){
                 Byte pixel = gfxBuffer[i];
                 pixelsBuffer[i] = (UInt32)((0x00FFFFFF * pixel) | 0xFF000000);
             }
