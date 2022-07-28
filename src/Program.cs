@@ -41,6 +41,10 @@ namespace chipeur
                 _chip8.LoadGame(romPath);
                 StartEmulationThread();
             };
+            Gui.ChangeProfile += (int profileType) =>
+            {
+                _chip8.LoadProfile(profileType);
+            };
 
             Graphics graphics = new Graphics();
             graphics.Initialize();

@@ -11,6 +11,9 @@ namespace chipeur.cpu
         private const int MEMORY_SIZE = 4096;
         private const int MEMORY_PROGRAM_START = 0x200;
 
+        public const int PROFILE_CHIP8 = 0;
+        public const int PROFILE_SUPERCHIP = 1;
+
         public bool drawFlag {get; set;}
         public bool needToBeep {get; set;}
         public bool gameLoaded {get {return _gamePath!=null;}}
@@ -32,11 +35,35 @@ namespace chipeur.cpu
 
         private Input _input;
 
-        private static bool vf_reset_quirk = true;
-        private static bool mem_quirk = true;
-        private static bool display_wait_quirk = true;
-        private static bool clipping_quirk = true;
-        private static bool shifting_quirk = false;
+        private static bool vf_reset_quirk;
+        private static bool mem_quirk;
+        private static bool display_wait_quirk;
+        private static bool clipping_quirk;
+        private static bool shifting_quirk;
+        private static bool jumping_quirk;
+
+        public readonly struct Profile
+        {
+            public Profile(string name, bool vfResetQuirk, bool memQuirk, bool displayWaitQuirk, bool clippingQuirk, bool shiftingQuirk, bool jumpingQuirk){
+                this.name = name;
+                this.vfResetQuirk = vfResetQuirk;
+                this.memQuirk = memQuirk;
+                this.displayWaitQuirk = displayWaitQuirk;
+                this.clippingQuirk = clippingQuirk;
+                this.shiftingQuirk = shiftingQuirk;
+                this.jumpingQuirk = jumpingQuirk;
+            }
+            public string name {get; init;}
+            public bool vfResetQuirk {get; init;}
+            public bool memQuirk {get; init;}
+            public bool displayWaitQuirk {get; init;}
+            public bool clippingQuirk {get; init;}
+            public bool shiftingQuirk {get; init;}
+            public bool jumpingQuirk {get; init;}
+        }
+
+        private Profile[] _profiles;
+        public static int profile;
 
         private Byte[] _chip8_fontset = new Byte[80]
         {
@@ -91,7 +118,7 @@ namespace chipeur.cpu
             _0x8Delegates[0x000E] = CpuStoreVXBitInVFAndShiftToLeft;
             _delegates[0x9] = CpuSkipIfVXNotEqualsVY;
             _delegates[0xA] = CpuSetIToNNN;
-            _delegates[0xB] = CpuJumpToNNNPlusV0;
+            _delegates[0xB] = CpuJumpToNNNPlusVX;
             _delegates[0xC] = CpuSetVXToBitwiseAndOnRandomAndNN;
             _delegates[0xD] = CpuDrawSpriteAtVXVY;
             _delegates[0xE] = OpCode0xE;
@@ -107,6 +134,11 @@ namespace chipeur.cpu
             _0xFDelegates[0x0033] = CpuStoreBCDOfVX;
             _0xFDelegates[0x0055] = CpuStoreV0ToVXAtAddressI;
             _0xFDelegates[0x0065] = CpuFillV0ToVXWithValuesAtAddressI;
+
+            var chip8Profile = new Profile("Chip 8 (Cosmac VIP)", true, true, true, true, false, false);
+            var superChipProfile = new Profile("SuperChip 1.1", false, false, false, true, true, true);
+            _profiles = new Profile[] {chip8Profile, superChipProfile};
+            profile = PROFILE_CHIP8;
         }
 
         public void Initialize(){
@@ -128,6 +160,19 @@ namespace chipeur.cpu
             _sound_timer = 0;
             _delay_timer = 0;
             _waitForInterrupt = 0;
+
+            LoadProfile(profile);
+        }
+
+        public void LoadProfile(int profileType){
+            var profile = _profiles[profileType];
+            vf_reset_quirk = profile.vfResetQuirk;
+            mem_quirk = profile.memQuirk;
+            display_wait_quirk = profile.displayWaitQuirk;
+            clipping_quirk = profile.clippingQuirk;
+            shifting_quirk = profile.shiftingQuirk;
+            jumping_quirk = profile.jumpingQuirk;
+            Chip8.profile = profileType;
         }
 
         public void LoadGame(string gamePath){
@@ -382,9 +427,14 @@ namespace chipeur.cpu
             _pc += 2;
         }
 
-        //0xBNNN : Jumps to the address NNN plus V0.
-        private void CpuJumpToNNNPlusV0(UInt16 opcode){
-            _pc = (UInt16)((opcode & 0x0fff) + _V[0]);
+        //0xBNNN : Jumps to the address NNN plus V0 (or 0xBXNN XNN + VX where X is the highest nibble on NNN).
+        private void CpuJumpToNNNPlusVX(UInt16 opcode){
+            if(!jumping_quirk){
+                _pc = (UInt16)((opcode & 0x0fff) + _V[0]);
+            }
+            else{
+                _pc = (UInt16)((opcode & 0x0fff) + _V[(opcode & 0x0f00) >> 8]);
+            }
         }
 
         //0xCXNN : Sets VX to the result of a bitwise and operation on a random number (Typically: 0 to 255) and NN.

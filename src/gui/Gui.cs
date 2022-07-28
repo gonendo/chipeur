@@ -45,6 +45,7 @@ namespace chipeur.gui
         public static event Action<int> ChangeSpeed;
         public static event Action<int> ChangeKeyboardLayout;
         public static event Action<string> LoadRom;
+        public static event Action<int> ChangeProfile;
 
         private static bool _imguiLoadRom;
         private static bool _imguiQuit;
@@ -56,6 +57,8 @@ namespace chipeur.gui
         private static bool _imguiSoundOff;
         private static bool _imguiHelpAbout;
         private static bool _imguiAboutOpen;
+        private static bool _imguiCompatibilityChip8 = true;
+        private static bool _imguiCompatibilitySuperChip;
 
         private static bool _aboutWindowVisible;
         public static bool menuBarVisible;
@@ -187,6 +190,11 @@ namespace chipeur.gui
                     ImGui.EndMenu();
                 }
                 if(ImGui.BeginMenu("Options")){
+                    if(ImGui.BeginMenu("Compatibility")){
+                        ImGui.MenuItem("Chip 8 (Cosmac VIP)", null, ref _imguiCompatibilityChip8);
+                        ImGui.MenuItem("SuperChip 1.1", null, ref _imguiCompatibilitySuperChip);
+                        ImGui.EndMenu();
+                    }
                     if(ImGui.BeginMenu("Speed")){
                         ImGui.MenuItem("60 hz", null, ref _imguiSpeed60hz);
                         ImGui.MenuItem("500 hz", null, ref _imguiSpeed500hz);
@@ -282,12 +290,29 @@ namespace chipeur.gui
                 _aboutWindowVisible = false;
             }
 
+            if(_imguiCompatibilityChip8){
+                if(Chip8.profile != Chip8.PROFILE_CHIP8){
+                    ChangeProfile.Invoke(Chip8.PROFILE_CHIP8);
+                    _imguiCompatibilitySuperChip = false;
+                }
+                _imguiCompatibilityChip8 = false;
+            }
+            if(_imguiCompatibilitySuperChip){
+                if(Chip8.profile != Chip8.PROFILE_SUPERCHIP){
+                    ChangeProfile.Invoke(Chip8.PROFILE_SUPERCHIP);
+                    _imguiCompatibilityChip8 = false;
+                }
+                _imguiCompatibilitySuperChip = false;
+            }
+
             _imguiAzerty = Input.keyboardLayout == Input.KEYBOARD_LAYOUT_AZERTY;
             _imguiQwerty = Input.keyboardLayout == Input.KEYBOARD_LAYOUT_QWERTY;
             _imguiSpeed60hz = Chip8.speedInHz == 60;
             _imguiSpeed500hz = Chip8.speedInHz == 500;
             _imguiSoundOn = !Sounds.mute;
             _imguiSoundOff = Sounds.mute;
+            _imguiCompatibilityChip8 = Chip8.profile == Chip8.PROFILE_CHIP8;
+            _imguiCompatibilitySuperChip = Chip8.profile == Chip8.PROFILE_SUPERCHIP; 
         }
 
         private static void DrawTexture(UInt32[] pixels){
