@@ -111,8 +111,8 @@ namespace chipeur
                 DateTime currentTick = DateTime.Now;
                 TimeSpan span = currentTick - lastTick;
                 if(span.TotalMilliseconds >= targetDeltaMs){
-                  _chip8.EmulateCycle();
-                  lastTick = currentTick;
+                    _chip8.EmulateCycle();
+                    lastTick = currentTick;
                 }
             }
         }
