@@ -63,7 +63,7 @@ namespace chipeur
 
             _chip8TimersTimer = true;
             CancellationTokenSource cts2 = new CancellationTokenSource();
-            ThreadPool.QueueUserWorkItem(new WaitCallback(DecreaseChip8Timers), cts2.Token);
+            ThreadPool.QueueUserWorkItem(new WaitCallback(UpdateChip8Timers), cts2.Token);
 
             while(_running){
                 if(_chip8.drawFlag){
@@ -117,14 +117,14 @@ namespace chipeur
             }
         }
 
-        private static void DecreaseChip8Timers(object obj){
+        private static void UpdateChip8Timers(object obj){
             double targetDeltaMs = (double)1/60*1000;
             DateTime lastTick = DateTime.Now;
             while(_chip8TimersTimer){
                 DateTime currentTick = DateTime.Now;
                 TimeSpan span = currentTick - lastTick;
                 if(_chip8.gameLoaded && (span.TotalMilliseconds >= targetDeltaMs)){
-                    _chip8.DecreaseTimers();
+                    _chip8.UpdateTimers();
                     lastTick = currentTick;
                 }
             }

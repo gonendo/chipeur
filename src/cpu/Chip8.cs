@@ -26,10 +26,17 @@ namespace chipeur.cpu
 
         private Byte _sound_timer;
         private Byte _delay_timer;
+        private int _waitForInterrupt;
 
         private string _gamePath;
 
         private Input _input;
+
+        private static bool vf_reset_quirk = true;
+        private static bool mem_quirk = true;
+        private static bool display_wait_quirk = true;
+        private static bool clipping_quirk = true;
+        private static bool shifting_quirk = false;
 
         private Byte[] _chip8_fontset = new Byte[80]
         {
@@ -120,6 +127,7 @@ namespace chipeur.cpu
 
             _sound_timer = 0;
             _delay_timer = 0;
+            _waitForInterrupt = 0;
         }
 
         public void LoadGame(string gamePath){
@@ -154,7 +162,7 @@ namespace chipeur.cpu
             func(_opcode);
         }
 
-        public void DecreaseTimers(){
+        public void UpdateTimers(){
             if(_delay_timer > 0){
                 --_delay_timer;
             }
@@ -164,6 +172,25 @@ namespace chipeur.cpu
                     needToBeep = true;
                 }
                 --_sound_timer;
+            }
+
+            if(_waitForInterrupt == 1){
+                _waitForInterrupt = 2;
+            }
+        }
+
+        private bool waitForInterrupt(){
+            switch (_waitForInterrupt){
+                case 0:
+                    _waitForInterrupt = 1;
+                    _pc -= 2;
+                    return true;
+                case 1:
+                    _pc -= 2;
+                    return true;
+                default:
+                    _waitForInterrupt = 0;
+                    return false;
             }
         }
 
@@ -261,18 +288,24 @@ namespace chipeur.cpu
         //0x8XY1 : Sets VX to VX or VY. (Bitwise OR operation);
         private void CpuSetVXToVXOrVY(UInt16 opcode){
             _V[(opcode & 0x0f00) >> 8] |= _V[(opcode & 0x00f0) >> 4];
+            if(vf_reset_quirk)
+                _V[0xf] = 0;
             _pc += 2;
         }
 
         //0x8XY2 : Sets VX to VX and VY. (Bitwise AND operation);
         private void CpuSetVXToVXAndVY(UInt16 opcode){
             _V[(opcode & 0x0f00) >> 8] &= _V[(opcode & 0x00f0) >> 4];
+            if(vf_reset_quirk)
+                _V[0xf] = 0;
             _pc += 2;
         }
 
         //0x8XY3 : Sets VX to VX xor VY.
         private void CpuSetVXToVXXorVY(UInt16 opcode){
             _V[(opcode & 0x0f00) >> 8] ^= _V[(opcode & 0x00f0) >> 4];
+            if(vf_reset_quirk)
+                _V[0xf] = 0;
             _pc += 2;
         }
 
@@ -299,8 +332,10 @@ namespace chipeur.cpu
 
         //0x8XY6 : Stores the least significant bit of VX in VF and then shifts VX to the right by 1.
         private void CpuStoreVXBitInVFAndShiftToRight(UInt16 opcode){
-            var VY = _V[(opcode & 0x00f0) >> 4];
-            _V[(opcode & 0x0f00) >> 8] = VY;
+            if(!shifting_quirk){
+                var VY = _V[(opcode & 0x00f0) >> 4];
+                _V[(opcode & 0x0f00) >> 8] = VY;
+            }
             var bit = (Byte)(_V[(opcode & 0x0f00) >> 8] & 1);
             _V[(opcode & 0x0f00) >> 8] >>= 1;
             _V[0xf] = (Byte)(bit > 0 ? 1 : 0);
@@ -322,8 +357,10 @@ namespace chipeur.cpu
 
         //0x8XYE : Stores the most significant bit of VX in VF and then shifts VX to the left by 1.
         private void CpuStoreVXBitInVFAndShiftToLeft(UInt16 opcode){
-            var VY = _V[(opcode & 0x00f0) >> 4];
-            _V[(opcode & 0x0f00) >> 8] = VY;
+            if(!shifting_quirk){
+                var VY = _V[(opcode & 0x00f0) >> 4];
+                _V[(opcode & 0x0f00) >> 8] = VY;
+            }
             _V[(opcode & 0x0f00) >> 8] <<= 1;
             _V[0xf] = (Byte)(_V[(opcode & 0x0f00) >> 8] >> 7);
             _pc += 2;
@@ -357,8 +394,15 @@ namespace chipeur.cpu
             _pc += 2;
         }
 
-        //0xDXYN : Draws a sprite at coordinate (VX, VY) that has a width of 8 pixels and a height of N pixels. Each row of 8 pixels is read as bit-coded starting from memory location I; I value does not change after the execution of this instruction. As described above, VF is set to 1 if any screen pixels are flipped from set to unset when the sprite is drawn, and to 0 if that does not happen
+        /*0xDXYN : Draws a sprite at coordinate (VX, VY) that has a width of 8 pixels and a height of N pixels. 
+        Each row of 8 pixels is read as bit-coded starting from memory location I; 
+        I value does not change after the execution of this instruction. 
+        As described above, VF is set to 1 if any screen pixels are flipped from set to unset when the sprite is drawn, and to 0 if that does not happen*/
         private void CpuDrawSpriteAtVXVY(UInt16 opcode){
+            if(display_wait_quirk && waitForInterrupt()){
+                _pc += 2;
+                return;
+            }
             //Get the position from the registers
             byte x = _V[(opcode & 0x0f00) >> 8];
             byte y = _V[(opcode & 0x00f0) >> 4];
@@ -373,23 +417,28 @@ namespace chipeur.cpu
             for(int i=y; i >= DISPLAY_HEIGHT; i -= DISPLAY_HEIGHT){
                 y -= DISPLAY_HEIGHT;
             }
-            
+
             bool erases = false;
 
             //Iterate through each of the sprite lines starting at address I
             for(int i=0; i < height; i++){
                 var line = _memory[_I + i];
-
-                for(int j=0; j < 8; j++){
-                    var pixelIndex =  x + j + ((y + i) * DISPLAY_WIDTH);
-                    if(pixelIndex >= DISPLAY_WIDTH * DISPLAY_HEIGHT){
-                        continue;
+                if(y + i >= DISPLAY_HEIGHT){
+                    if(clipping_quirk){
+                        break;
                     }
-                    bool lineErases = (line & (0x80 >> j)) != 0;
-                    if(lineErases){
+                }
+                for(int j=0; j < 8; j++){
+                    if(x + j >= DISPLAY_WIDTH){
+                        if(clipping_quirk){
+                            break;
+                        }
+                    }
+                    var pixelIndex =  x + j + ((y + i) * DISPLAY_WIDTH);
+                    if((line & (0x80 >> j)) != 0){
+                        erases = erases || gfx[pixelIndex] == 1;
                         gfx[pixelIndex] ^= 1;
                     }
-                    erases = erases || lineErases;
                 }
             }
 
@@ -483,16 +532,24 @@ namespace chipeur.cpu
 
         //0xFX55 : Stores V0 to VX (including VX) in memory starting at address I. The offset from I is increased by 1 for each value written, but I itself is left unmodified.
         private void CpuStoreV0ToVXAtAddressI(UInt16 opcode){
-            for(int i=0; i <= (opcode & 0x0f00) >> 8; i++){
+            int x = (opcode & 0x0f00) >> 8;
+            for(int i=0; i <= x; i++){
                 _memory[_I + i] = _V[i];
+            }
+            if(mem_quirk){
+                _I += (UInt16)(x + 1);
             }
             _pc += 2;       
         }
 
         //0xFX65 : Fills V0 to VX (including VX) with values from memory starting at address I. The offset from I is increased by 1 for each value written, but I itself is left unmodified.
         private void CpuFillV0ToVXWithValuesAtAddressI(UInt16 opcode){
-            for(int i=0; i <= (opcode & 0x0f00) >> 8; i++){
+            int x = (opcode & 0x0f00) >> 8;
+            for(int i=0; i <= x; i++){
                 _V[i] = _memory[_I + i];
+            }
+            if(mem_quirk){
+                _I += (UInt16)(x + 1);
             }
             _pc += 2;
         }
