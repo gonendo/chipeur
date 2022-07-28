@@ -32,6 +32,7 @@ namespace chipeur.cpu
         private int _waitForInterrupt;
 
         private string _gamePath;
+        public string  gamePath {get {return _gamePath;}}
 
         private Input _input;
 

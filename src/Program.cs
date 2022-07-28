@@ -37,14 +37,14 @@ namespace chipeur
             };
             Gui.LoadRom += (string romPath) =>
             {
-                StopEmulationThread();
-                _chip8.Initialize();
-                _chip8.LoadGame(romPath);
-                StartEmulationThread(false);
+                LoadRom(romPath);
             };
             Gui.ChangeProfile += (int profileType) =>
             {
                 _chip8.LoadProfile(profileType);
+                if(_chip8.gameLoaded){
+                    LoadRom(_chip8.gamePath);
+                }
             };
 
             Graphics graphics = new Graphics();
@@ -88,6 +88,13 @@ namespace chipeur
             cts2.Cancel();
             cts2.Dispose();
             gui.Destroy();
+        }
+
+        private static void LoadRom(string gamePath){
+            StopEmulationThread();
+            _chip8.Initialize();
+            _chip8.LoadGame(gamePath);
+            StartEmulationThread(false);
         }
 
         private static void StartEmulationThread(bool stopEmulation=true){
