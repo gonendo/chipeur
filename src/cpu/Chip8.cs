@@ -299,6 +299,8 @@ namespace chipeur.cpu
 
         //0x8XY6 : Stores the least significant bit of VX in VF and then shifts VX to the right by 1.
         private void CpuStoreVXBitInVFAndShiftToRight(UInt16 opcode){
+            var VY = _V[(opcode & 0x00f0) >> 4];
+            _V[(opcode & 0x0f00) >> 8] = VY;
             var bit = (Byte)(_V[(opcode & 0x0f00) >> 8] & 1);
             _V[(opcode & 0x0f00) >> 8] >>= 1;
             _V[0xf] = (Byte)(bit > 0 ? 1 : 0);
@@ -320,6 +322,8 @@ namespace chipeur.cpu
 
         //0x8XYE : Stores the most significant bit of VX in VF and then shifts VX to the left by 1.
         private void CpuStoreVXBitInVFAndShiftToLeft(UInt16 opcode){
+            var VY = _V[(opcode & 0x00f0) >> 4];
+            _V[(opcode & 0x0f00) >> 8] = VY;
             _V[(opcode & 0x0f00) >> 8] <<= 1;
             _V[0xf] = (Byte)(_V[(opcode & 0x0f00) >> 8] >> 7);
             _pc += 2;
