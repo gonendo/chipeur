@@ -15,6 +15,7 @@ namespace chipeur
         private static bool _running = true;
         private static Chip8 _chip8;
         private static CancellationTokenSource _cts;
+        private static CancellationTokenSource _cts2;
         private static bool _chip8EmulationTimer;
         private static bool _chip8TimersTimer;
 
@@ -46,6 +47,10 @@ namespace chipeur
                     LoadRom(_chip8.gamePath);
                 }
             };
+            Chip8.StopEmulation += () =>
+            {
+                StopEmulationThread();
+            };
 
             Graphics graphics = new Graphics();
 
@@ -55,7 +60,9 @@ namespace chipeur
             input.Initialize();
 
             _chip8 = new Chip8(input);
+            _chip8.LoadProfile(Chip8.profile);
             _chip8.Initialize();
+
             if(args.Length > 0){
                 _chip8.LoadGame(args[0]);
             }
@@ -65,9 +72,6 @@ namespace chipeur
 
             StartEmulationThread();
 
-            _chip8TimersTimer = true;
-            CancellationTokenSource cts2 = new CancellationTokenSource();
-            ThreadPool.QueueUserWorkItem(new WaitCallback(UpdateChip8Timers), cts2.Token);
 
             while(_running){
                 if(_chip8.drawFlag){
@@ -84,9 +88,6 @@ namespace chipeur
             }
 
             StopEmulationThread();
-            _chip8TimersTimer = false;
-            cts2.Cancel();
-            cts2.Dispose();
             gui.Destroy();
         }
 
@@ -106,14 +107,23 @@ namespace chipeur
                 _chip8EmulationTimer = true;
                 _cts = new CancellationTokenSource();
                 ThreadPool.QueueUserWorkItem(new WaitCallback(EmulateChip8Cycle), _cts.Token);
+
+                _chip8TimersTimer = true;
+                _cts2 = new CancellationTokenSource();
+                ThreadPool.QueueUserWorkItem(new WaitCallback(UpdateChip8Timers), _cts2.Token);
             }
         }
 
         private static void StopEmulationThread(){
-            if(_cts != null){
+            if(_cts != null && _chip8EmulationTimer){
                 _chip8EmulationTimer = false;
                 _cts.Cancel();
                 _cts.Dispose();
+            }
+            if(_cts2 != null && _chip8TimersTimer){
+                _chip8TimersTimer = false;
+                _cts2.Cancel();
+                _cts2.Dispose();
             }
         }
 

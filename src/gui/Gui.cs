@@ -53,6 +53,7 @@ namespace chipeur.gui
         private static bool _imguiQwerty = true;
         private static bool _imguiSpeed60hz;
         private static bool _imguiSpeed500hz = true;
+        private static bool _imguiSpeed1000hz;
         private static bool _imguiSoundOn = true;
         private static bool _imguiSoundOff;
         private static bool _imguiHelpAbout;
@@ -201,6 +202,7 @@ namespace chipeur.gui
                     if(ImGui.BeginMenu("Speed")){
                         ImGui.MenuItem("60 hz", null, ref _imguiSpeed60hz);
                         ImGui.MenuItem("500 hz", null, ref _imguiSpeed500hz);
+                        ImGui.MenuItem("1000 hz", null, ref _imguiSpeed1000hz);
                         ImGui.EndMenu();
                     }
                     if(ImGui.BeginMenu("Sound")){
@@ -264,12 +266,21 @@ namespace chipeur.gui
                 if(Chip8.speedInHz != 60){
                     ChangeSpeed.Invoke(60);
                     _imguiSpeed500hz = false;
+                    _imguiSpeed1000hz = false;
                 }
             }
             if(_imguiSpeed500hz){
                 if(Chip8.speedInHz != 500){
                     ChangeSpeed.Invoke(500);
                     _imguiSpeed60hz = false;
+                    _imguiSpeed1000hz = false;
+                }
+            }
+            if(_imguiSpeed1000hz){
+                if(Chip8.speedInHz != 1000){
+                    ChangeSpeed.Invoke(1000);
+                    _imguiSpeed60hz = false;
+                    _imguiSpeed500hz = false;
                 }
             }
             if(_imguiSoundOn){
@@ -312,6 +323,7 @@ namespace chipeur.gui
             _imguiQwerty = Input.keyboardLayout == Input.KEYBOARD_LAYOUT_QWERTY;
             _imguiSpeed60hz = Chip8.speedInHz == 60;
             _imguiSpeed500hz = Chip8.speedInHz == 500;
+            _imguiSpeed1000hz = Chip8.speedInHz == 1000;
             _imguiSoundOn = !Sounds.mute;
             _imguiSoundOff = Sounds.mute;
             _imguiCompatibilityChip8 = Chip8.profile == Chip8.PROFILE_CHIP8;

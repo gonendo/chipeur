@@ -13,6 +13,7 @@ namespace chipeur.cpu
         public const int PROFILE_SUPERCHIP = 1;
 
         public static event Action<int,int> ChangeDisplayResolution;
+        public static event Action StopEmulation;
 
         public bool drawFlag {get; set;}
         public bool needToBeep {get; set;}
@@ -21,6 +22,7 @@ namespace chipeur.cpu
         private Byte[] _memory;
         private UInt16[] _stack;
         private Byte[] _V; //registers V0-VE
+        private Byte[] _userFlags;
 
         private UInt16 _pc; //program counter
         private UInt16 _opcode;
@@ -93,10 +95,23 @@ namespace chipeur.cpu
             0xF0, 0x80, 0xF0, 0x80, 0xF0, // E
             0xF0, 0x80, 0xF0, 0x80, 0x80  // F
         };
+        private Byte[] _schip_fontset = new Byte[100]
+        {
+            0x3C, 0x7E, 0xC3, 0xC3, 0xC3, 0xC3, 0xC3, 0xC3, 0x7E, 0x3C, // 0
+            0x18, 0x38, 0x58, 0x18, 0x18, 0x18, 0x18, 0x18, 0x18, 0x3C, // 1
+            0x3E, 0x7F, 0xC3, 0x06, 0x0C, 0x18, 0x30, 0x60, 0xFF, 0xFF, // 2
+            0x3C, 0x7E, 0xC3, 0x03, 0x0E, 0x0E, 0x03, 0xC3, 0x7E, 0x3C, // 3
+            0x06, 0x0E, 0x1E, 0x36, 0x66, 0xC6, 0xFF, 0xFF, 0x06, 0x06, // 4
+            0xFF, 0xFF, 0xC0, 0xC0, 0xFC, 0xFE, 0x03, 0xC3, 0x7E, 0x3C, // 5
+            0x3E, 0x7C, 0xC0, 0xC0, 0xFC, 0xFE, 0xC3, 0xC3, 0x7E, 0x3C, // 6
+            0xFF, 0xFF, 0x03, 0x06, 0x0C, 0x18, 0x30, 0x60, 0x60, 0x60, // 7
+            0x3C, 0x7E, 0xC3, 0xC3, 0x7E, 0x7E, 0xC3, 0xC3, 0x7E, 0x3C, // 8
+            0x3C, 0x7E, 0xC3, 0xC3, 0x7F, 0x3F, 0x03, 0x03, 0x3E, 0x7C  // 9
+        };
 
         private delegate void InstructionDelegate(UInt16 opcode);
         private InstructionDelegate[] _delegates = new InstructionDelegate[16];
-        private InstructionDelegate[] _0x0Delegates = new InstructionDelegate[256];
+        private InstructionDelegate[] _0x0Delegates = new InstructionDelegate[561];
         private InstructionDelegate[] _0x8Delegates = new InstructionDelegate[15];
         private InstructionDelegate[] _0xEDelegates = new InstructionDelegate[15];
         private InstructionDelegate[] _0xFDelegates = new InstructionDelegate[134];
@@ -106,7 +121,6 @@ namespace chipeur.cpu
 
             //function pointers
             _delegates[0x0] = OpCode0x0;
-            _0x0Delegates[0x00C0] = CpuScrollDisplay;
             _0x0Delegates[0x00E0] = CpuDisplayClear;
             _0x0Delegates[0x00EE] = CpuReturn;
             _0x0Delegates[0x00FB] = CpuScrollDisplayRight;
@@ -114,7 +128,8 @@ namespace chipeur.cpu
             _0x0Delegates[0x00FD] = CpuExitInterpreter;
             _0x0Delegates[0x00FE] = CpuDisableHighResMode;
             _0x0Delegates[0x00FF] = CpuEnableHighResMode;
-            _delegates[0x1] = CpuJump;
+            _0x0Delegates[0x0230] = CpuDisplayClear;
+            _delegates[0x1] = OpCode0x1;
             _delegates[0x2] = CpuCallSubRoutine;
             _delegates[0x3] = CpuSkipIfVXEqualsNN;
             _delegates[0x4] = CpuSkipIfVXNotEqualsNN;
@@ -168,25 +183,28 @@ namespace chipeur.cpu
             _memory = new Byte[MEMORY_SIZE];
             _stack = new UInt16[16];
             _V = new Byte[16];
+            _userFlags = new Byte[8];
 
             //load fontset
-            for(int i=0; i < 80; i++){
+            for(int i=0; i < _chip8_fontset.Length; i++){
                 _memory[i] = _chip8_fontset[i];
             }
+            if(profile == PROFILE_SUPERCHIP){
+                for(int i=_chip8_fontset.Length; i < _chip8_fontset.Length + _schip_fontset.Length; i++){
+                    _memory[i] = _schip_fontset[i-_chip8_fontset.Length];
+                }
+            }
 
+            RestoreDisplayResolutionFromProfile(profile);
             _sound_timer = 0;
             _delay_timer = 0;
             _waitForInterrupt = 0;
-
-            LoadProfile(profile);
+            hiResMode = false;
         }
 
         public void LoadProfile(int profileType){
+            RestoreDisplayResolutionFromProfile(profileType);
             var profile = _profiles[profileType];
-            gfx = new Byte[profile.displayWidth * profile.displayHeight];
-            displayWidth = profile.displayWidth;
-            displayHeight = profile.displayHeight;
-            ChangeDisplayResolution.Invoke(profile.displayWidth, profile.displayHeight);
             vf_reset_quirk = profile.vfResetQuirk;
             mem_quirk = profile.memQuirk;
             display_wait_quirk = profile.displayWaitQuirk;
@@ -194,6 +212,14 @@ namespace chipeur.cpu
             shifting_quirk = profile.shiftingQuirk;
             jumping_quirk = profile.jumpingQuirk;
             Chip8.profile = profileType;
+        }
+
+        private void RestoreDisplayResolutionFromProfile(int profileType){
+            var profile = _profiles[profileType];
+            gfx = new Byte[profile.displayWidth * profile.displayHeight];
+            ChangeDisplayResolution.Invoke(profile.displayWidth, profile.displayHeight);
+            displayWidth = profile.displayWidth;
+            displayHeight = profile.displayHeight;
         }
 
         public void LoadGame(string gamePath){
@@ -223,9 +249,14 @@ namespace chipeur.cpu
             Byte delegateIndex = (Byte)(firstBits >> 12);
 
             //execute opcode
-            var func = _delegates[delegateIndex];
+            var func = delegateIndex >=0 && delegateIndex < _delegates.Length ? _delegates[delegateIndex] : null;
             //Console.WriteLine(_pc+" "+func.Method.Name+" "+_opcode.ToString("X4"));
-            func(_opcode);
+            if(func != null){
+                func(_opcode);
+            }
+            else{
+                _pc += 2;
+            }
         }
 
         public void UpdateTimers(){
@@ -261,15 +292,38 @@ namespace chipeur.cpu
         }
 
         private void OpCode0x0(UInt16 opcode){
-            var func = _0x0Delegates[(opcode & 0x00FF)];
-            //Console.WriteLine(_pc+" "+func.Method.Name+" "+opcode.ToString("X4"));
-            func(opcode);
+            //0x00CN
+            if((opcode & 0x00F0) >> 4 == 0xC){
+                CpuScrollDisplay(opcode);
+            }
+            else{
+                var delegateIndex = (opcode & 0x0FFF);
+                var func = delegateIndex >=0 && delegateIndex < _0x0Delegates.Length ? _0x0Delegates[delegateIndex] : null;
+                //Console.WriteLine(_pc+" "+func.Method.Name+" "+opcode.ToString("X4"));
+                if(func != null){
+                    func(opcode);
+                }
+                else{
+                    _pc += 2;
+                }
+            }
         }
 
         //0x00CN : Scroll display N pixels down; in low resolution mode, N/2 pixels
-        //TODO
         private void CpuScrollDisplay(UInt16 opcode){
-            //Console.WriteLine(_pc+" CpuScrollDisplay "+_opcode.ToString("X4"));
+            byte n = (byte)(opcode & 0x000F);
+            var offset = displayWidth * n;
+            for(int i = displayWidth * displayHeight; i > 0; i--){
+                int j = i - 1;
+                byte pixel = 0;
+                if (j > offset){
+                    pixel = gfx[j - offset];
+                }
+                gfx[j] = pixel;
+            }
+
+            drawFlag = true;
+            _pc += 2;
         }
 
         //0x00E0 : Clears the screen
@@ -290,38 +344,66 @@ namespace chipeur.cpu
         }
 
         //0x00FB : Scroll right by 4 pixels; in low resolution mode, 2 pixels
-        //TODO
         private void CpuScrollDisplayRight(UInt16 opcode){
-            //Console.WriteLine(_pc+" CpuScrollDisplayRight "+_opcode.ToString("X4"));
+            for(int i = displayWidth * displayHeight; i > 0; i--){
+                int j = i - 1;
+                byte pixel = 0;
+                if(j % displayWidth >= 4){
+                    pixel = gfx[j - 4];
+                }
+                gfx[j] = pixel;
+            }
+
+            drawFlag = true;
+            _pc += 2;
         }
 
         //0x00FC : Scroll left by 4 pixels; in low resolution mode, 2 pixels
-        //TODO
         private void CpuScrollDisplayLeft(UInt16 opcode){
-            //Console.WriteLine(_pc+" CpuScrollDisplayLeft "+_opcode.ToString("X4"));
+            for(int i=0; i < displayWidth * displayHeight; i++){
+                byte pixel = 0;
+                if(i % displayWidth < displayWidth - 4){
+                    pixel = gfx[i + 4];
+                }
+                gfx[i] = pixel;
+            }
+
+            drawFlag = true;
+            _pc += 2;
         }
 
         //0x00FD : Exit interpreter
-        //TODO
         private void CpuExitInterpreter(UInt16 opcode){
-            //Console.WriteLine(_pc+" CpuExitInterpreter "+_opcode.ToString("X4"));
+            StopEmulation.Invoke();
         }
 
         //0x00FE : Disable high-resolution mode
-        //TODO
         private void CpuDisableHighResMode(UInt16 opcode){
-            //Console.WriteLine(_pc+" CpuDisableHighResMode "+_opcode.ToString("X4"));
+            hiResMode = false;
+            _pc += 2;
         }
 
         //0x00FF : Enable high-resolution mode
-        //TODO
         private void CpuEnableHighResMode(UInt16 opcode){
-            //Console.WriteLine(_pc+" CpuEnableHighResMode "+_opcode.ToString("X4"));
+            hiResMode = true;
+            _pc += 2;
         }
 
-        //0x1NNN : Jumps to address NNN
-        private void CpuJump(UInt16 opcode){
-            _pc = (UInt16)(opcode & 0x0fff);
+        //0x1NNN
+        private void OpCode0x1(UInt16 opcode){
+            //0x1260 only if it's the first instruction : set 2-page hires mode (64x64) and jump to 0x2c0
+            if(_pc == MEMORY_PROGRAM_START && opcode == 0x1260){
+                ChangeDisplayResolution.Invoke(64, 64);
+                displayWidth = 64;
+                displayHeight = 64;
+                gfx = new Byte[displayWidth * displayHeight];
+                hiResMode = true;
+                _pc = 0x02c0;
+            }
+            else{
+                //jump to address NNN
+                _pc = (UInt16)(opcode & 0x0fff);
+            }
         }
 
         //0x2NNN : Calls subroutine at NNN
@@ -376,9 +458,15 @@ namespace chipeur.cpu
         }
 
         private void OpCode0x8(UInt16 opcode){
-            var func = _0x8Delegates[(opcode & 0x000F)];
+            var delegateIndex = (opcode & 0x000F);
+            var func = delegateIndex >=0 && delegateIndex < _0x8Delegates.Length ? _0x8Delegates[delegateIndex] : null;
             //Console.WriteLine(_pc+" "+func.Method.Name+" "+opcode.ToString("X4"));
-            func(opcode);
+            if(func != null){
+                func(opcode);
+            }
+            else{
+                _pc += 2;
+            }
         }
 
         //0x8XY0 : Sets VX to the value of VY.
@@ -505,9 +593,7 @@ namespace chipeur.cpu
         Each row of 8 pixels is read as bit-coded starting from memory location I; 
         I value does not change after the execution of this instruction. 
         As described above, VF is set to 1 if any screen pixels are flipped from set to unset when the sprite is drawn, and to 0 if that does not happen*/
-        //TODO
         private void CpuDrawSpriteAtVXVY(UInt16 opcode){
-            //Console.WriteLine(_pc+" CpuDrawSpriteAtVXVY "+_opcode.ToString("X4"));
             if(display_wait_quirk && waitForInterrupt()){
                 _pc += 2;
                 return;
@@ -518,6 +604,10 @@ namespace chipeur.cpu
 
             //Number of lines of 8 pixels width
             byte n = (byte)(opcode & 0x000f);
+
+            if((profile == PROFILE_SUPERCHIP) && hiResMode && (n == 0)){
+                n = 16;
+            }
 
             byte width = (byte) (profile == PROFILE_SUPERCHIP && !hiResMode ? 64 : displayWidth);
             byte height = (byte) (profile == PROFILE_SUPERCHIP && !hiResMode ? 32 : displayHeight);
@@ -533,8 +623,9 @@ namespace chipeur.cpu
             bool erases = false;
 
             //Iterate through each of the sprite lines starting at address I
+            var offset = 0;
             for(int i=0; i < n; i++){
-                var line = _memory[_I + i];
+                var line = _memory[_I + offset];
                 if(y + i >= height){
                     if(clipping_quirk){
                         break;
@@ -563,6 +654,18 @@ namespace chipeur.cpu
                         }
                     }
                 }
+                offset++;
+                if (n == 16){
+                    line = _memory[_I + offset];
+                    for(int j=0; j < 8; j++){
+                        if((line & (0x80 >> j)) != 0){
+                            var pixelIndex =  x + j + ((y + i) * width);
+                            erases = erases || gfx[pixelIndex + 8] == 1;
+                            gfx[pixelIndex + 8] ^= 1;
+                        }
+                    }
+                    offset++;
+                }
             }
 
             _V[0xf] = (byte)(erases ? 1 : 0);
@@ -572,9 +675,15 @@ namespace chipeur.cpu
         }
 
         private void OpCode0xE(UInt16 opcode){
-            var func = _0xEDelegates[(opcode & 0x000F)];
+            var delegateIndex = (opcode & 0x000F);
+            var func = delegateIndex >=0 && delegateIndex < _0xEDelegates.Length ? _0xEDelegates[delegateIndex] : null;
             //Console.WriteLine(_pc+" "+func.Method.Name+" "+opcode.ToString("X4"));
-            func(opcode);
+            if(func != null){
+                func(opcode);
+            }
+            else{
+                _pc += 2;
+            }
         }
 
         //0xEX9E : Skips the next instruction if the key stored in VX is pressed. (Usually the next instruction is a jump to skip a code block);
@@ -598,9 +707,15 @@ namespace chipeur.cpu
         }
 
         private void OpCode0xF(UInt16 opcode){
-            var func = _0xFDelegates[(opcode & 0x00FF)];
+            var delegateIndex = (opcode & 0x00FF);
+            var func = delegateIndex >=0 && delegateIndex < _0xFDelegates.Length ? _0xFDelegates[delegateIndex] : null;
             //Console.WriteLine(_pc+" "+func.Method.Name+" "+opcode.ToString("X4"));
-            func(opcode);
+            if(func != null){
+                func(opcode);
+            }
+            else{
+                _pc += 2;
+            }
         }
 
         //0xFX07 : Sets VX to the value of the delay timer.
@@ -645,9 +760,9 @@ namespace chipeur.cpu
         }
 
         //0xFX30 : Point I to 10-byte font sprite for digit VX (only digits 0-9)
-        //TODO
         private void CpuSetITo10byteSpriteLocationInVX(UInt16 opcode){
-            //Console.WriteLine(_pc+" CpuSetITo10byteSpriteLocationInVX "+_opcode.ToString("X4"));
+            _I = (UInt16)((_V[(opcode & 0x0f00) >> 8] * 10) + _chip8_fontset.Length);
+            _pc += 2;
         }
 
         //0xFX33 : Stores the binary-coded decimal representation of VX, with the most significant of three digits at the address in I, the middle digit at I plus 1, and the least significant digit at I plus 2. (In other words, take the decimal representation of VX, place the hundreds digit in memory at location in I, the tens digit at location I+1, and the ones digit at location I+2.);
@@ -684,15 +799,21 @@ namespace chipeur.cpu
         }
 
         //0xFX75 : Store V0..VX in RPL user flags (X <= 7)
-        //TODO
         private void CpuStoreV0ToVXInRPL(UInt16 opcode){
-            //Console.WriteLine(_pc+" CpuStoreV0ToVXInRPL "+_opcode.ToString("X4"));
+            int x = (opcode & 0x0f00) >> 8;
+            for(int i=0; i <= x; i++){
+                _userFlags[i] = _V[i];
+            }
+            _pc += 2;
         }
 
         //0xFX85 : Read V0..VX from RPL user flags (X <= 7)
-        //TODO
         private void CpuReadV0ToVXFromRPL(UInt16 opcode){
-            //Console.WriteLine(_pc+" CpuReadV0ToVXFromRPL "+_opcode.ToString("X4"));
+            int x = (opcode & 0x0f00) >> 8;
+            for(int i=0; i <= x; i++){
+                _V[i] = _userFlags[i];
+            }
+            _pc += 2;
         }
     }
 }
