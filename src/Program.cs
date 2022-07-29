@@ -11,7 +11,7 @@ namespace chipeur
 {
     class Program
     {
-        public const string VERSION = "2.2";
+        public const string VERSION = "3.0";
         private static bool _running = true;
         private static Chip8 _chip8;
         private static CancellationTokenSource _cts;
